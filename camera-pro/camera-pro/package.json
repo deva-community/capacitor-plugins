@@ -1,5 +1,5 @@
 {
-  "name": "camera-pro",
+  "name": "@deva-community/capacitor-camera-pro",
   "version": "0.0.1",
   "description": "The CameraPro API provides the ability to take a photo or video with the camera or choose an existing one from the photo album.",
   "main": "dist/plugin.cjs.js",
@@ -17,10 +17,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/softwaredeva/camera-pro.git.git"
+    "url": "git+https://github.com/softwaredeva/capacitor-camera-pro.git.git"
   },
   "bugs": {
-    "url": "https://github.com/softwaredeva/camera-pro.git/issues"
+    "url": "https://github.com/softwaredeva/capacitor-camera-pro.git/issues"
   },
   "keywords": [
     "capacitor",

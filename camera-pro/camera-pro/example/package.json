@@ -14,7 +14,7 @@
     "@capacitor/core": "latest",
     "@capacitor/camera": "latest",
     "@capacitor/splash-screen": "latest",
-    "camera-pro": "file:.."
+    "@deva-community/capacitor-camera-pro": "file:.."
   },
   "devDependencies": {
     "@capacitor/cli": "latest"
