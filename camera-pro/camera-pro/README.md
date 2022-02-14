@@ -2,6 +2,10 @@
 
 The CameraPro API provides the ability to take a photo or video with the camera or choose an existing one from the photo album.
 
+# Based on @capacitor/camera and inpired from:
+https://github.com/apache/cordova-plugin-media-capture
+https://github.com/danielsogl/cordova-plugin-video-capture-plus
+
 ## Install
 
 ```bash
