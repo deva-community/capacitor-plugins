@@ -5,6 +5,7 @@ internal protocol CameraProAuthorizationState {
     var authorizationState: String { get }
 }
 
+@available(iOS 14.0, *)
 extension AVAuthorizationStatus: CameraProAuthorizationState {
     var authorizationState: String {
         switch self {

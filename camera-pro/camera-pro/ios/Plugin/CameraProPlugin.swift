@@ -7,6 +7,7 @@ import PhotosUI
 public class CameraProPlugin: CAPPlugin {
     private var call: CAPPluginCall?
     private var settings = CameraProSettings()
+    private var videoSettings = CameraProVideoSettings()
     private let defaultSource = CameraProSource.prompt
     private let defaultDirection = CameraProDirection.rear
     private var multiple = false
@@ -19,7 +20,11 @@ public class CameraProPlugin: CAPPlugin {
             let state: String
             switch permission {
             case .camera:
-                state = AVCaptureDevice.authorizationStatus(for: .video).authorizationState
+                if #available(iOS 14, *) {
+                    state = AVCaptureDevice.authorizationStatus(for: .video).authorizationState
+                } else {
+                    state = "\(AVCaptureDevice.authorizationStatus(for: .video))"
+                }
             case .photos:
                 if #available(iOS 14, *) {
                     state = PHPhotoLibrary.authorizationStatus(for: .readWrite).authorizationState
@@ -84,10 +89,28 @@ public class CameraProPlugin: CAPPlugin {
             case .prompt:
                 self.showPrompt()
             case .camera:
-                self.showCameraPro()
+                self.showCamera()
             case .photos:
                 self.showPhotos()
             }
+        }
+    }
+
+    @objc func getVideo(_ call: CAPPluginCall) {
+        self.multiple = false
+        self.call = call
+        self.videoSettings = cameraVideoSettings(from: call)
+
+        // Make sure they have all the necessary info.plist settings
+        if let missingUsageDescription = checkUsageDescriptions() {
+            CAPLog.print("⚡️ ", self.pluginId, "-", missingUsageDescription)
+            call.reject(missingUsageDescription)
+            bridge?.alert("CameraPro Error", "Missing required usage description. See console for more information")
+            return
+        }
+
+        DispatchQueue.main.async {
+            self.showVideo()
         }
     }
 
@@ -140,6 +163,14 @@ public class CameraProPlugin: CAPPlugin {
 
         return settings
     }
+
+    private func cameraVideoSettings(from call: CAPPluginCall) -> CameraProVideoSettings {
+        var settings = CameraProVideoSettings()
+        settings.saveToGallery = call.getBool("saveToGallery") ?? false
+        settings.duration = CGFloat(call.getInt("duration") ?? 0)
+        settings.highquality = call.getBool("highquality") ?? false
+        return settings
+    }
 }
 
 // public delegate methods
@@ -159,6 +190,21 @@ extension CameraProPlugin: UIImagePickerControllerDelegate, UINavigationControll
 
     public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
         picker.dismiss(animated: true, completion: nil)
+        let mediaType:AnyObject? = info[UIImagePickerController.InfoKey.mediaType] as AnyObject?
+        if let type:AnyObject = mediaType {
+            if type is String {
+                let stringType = type as! String
+                if stringType == "public.movie" {
+                    if let processedVideo = processVideo(from: info) {
+                        returnProcessedVideo(processedVideo)
+                    } else {
+                        self.call?.reject("Error processing video")
+                    }
+                    return
+                }
+            }
+        }
+        
         if let processedImage = processImage(from: info) {
             returnProcessedImage(processedImage)
         } else {
@@ -275,6 +321,19 @@ private extension CameraProPlugin {
             ])
         }
     }
+    
+    func returnVideo(_ processedVideo: ProcessedVideo) {
+        let fileURL = processedVideo.video
+        guard let webURL = bridge?.portablePath(fromLocalURL: fileURL) else {
+            call?.reject("Unable to get portable path to file")
+            return
+        }
+        call?.resolve([
+            "path": fileURL.absoluteString,
+            "webPath": webURL.absoluteString,
+            "format": "mov"
+        ])
+    }
 
     func returnImages(_ processedImages: [ProcessedImage]) {
         var photos: [PluginCallResultData] = []
@@ -316,6 +375,12 @@ private extension CameraProPlugin {
             self.returnImage(processedImage, isSaved: false)
         }
     }
+    
+    func returnProcessedVideo(_ processedVideo: ProcessedVideo) {
+        // TODO: save to gallery 
+        // https://www.raywenderlich.com/10857372-how-to-play-record-and-merge-videos-in-ios-and-swift#toc-anchor-003
+        returnVideo(processedVideo)
+    }
 
     func showPrompt() {
         // Build the action sheet
@@ -325,7 +390,7 @@ private extension CameraProPlugin {
         }))
 
         alert.addAction(UIAlertAction(title: settings.userPromptText.cameraAction, style: .default, handler: { [weak self] (_: UIAlertAction) in
-            self?.showCameraPro()
+            self?.showCamera()
         }))
 
         alert.addAction(UIAlertAction(title: settings.userPromptText.cancelAction, style: .cancel, handler: { [weak self] (_: UIAlertAction) in
@@ -335,12 +400,12 @@ private extension CameraProPlugin {
         self.bridge?.viewController?.present(alert, animated: true, completion: nil)
     }
 
-    func showCameraPro() {
+    func showCamera() {
         // check if we have a camera
         if (bridge?.isSimEnvironment ?? false) || !UIImagePickerController.isSourceTypeAvailable(UIImagePickerController.SourceType.camera) {
-            CAPLog.print("⚡️ ", self.pluginId, "-", "CameraPro not available in simulator")
-            bridge?.alert("CameraPro Error", "CameraPro not available in Simulator")
-            call?.reject("CameraPro not available while running in Simulator")
+            CAPLog.print("⚡️ ", self.pluginId, "-", "Camera not available in simulator")
+            bridge?.alert("Camera Error", "Camera not available in Simulator")
+            call?.reject("Camera not available while running in Simulator")
             return
         }
         // check for permission
@@ -353,7 +418,33 @@ private extension CameraProPlugin {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             if granted {
                 DispatchQueue.main.async {
-                    self?.presentCameraProPicker()
+                    self?.presentCameraPicker()
+                }
+            } else {
+                self?.call?.reject("User denied access to camera")
+            }
+        }
+    }
+
+    func showVideo() {
+        // check if we have a camera
+        if (bridge?.isSimEnvironment ?? false) || !UIImagePickerController.isSourceTypeAvailable(UIImagePickerController.SourceType.camera) {
+            CAPLog.print("⚡️ ", self.pluginId, "-", "Camera not available in simulator")
+            bridge?.alert("Camera Error", "Camera not available in Simulator")
+            call?.reject("Camera not available while running in Simulator")
+            return
+        }
+        // check for permission
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        if authStatus == .restricted || authStatus == .denied {
+            call?.reject("User denied access to camera")
+            return
+        }
+        // we either already have permission or can prompt
+        AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+            if granted {
+                DispatchQueue.main.async {
+                    self?.presentVideoPicker()
                 }
             } else {
                 self?.call?.reject("User denied access to camera")
@@ -384,15 +475,15 @@ private extension CameraProPlugin {
         }
     }
 
-    func presentCameraProPicker() {
+    func presentCameraPicker() {
         let picker = UIImagePickerController()
         picker.delegate = self
         picker.allowsEditing = self.settings.allowEditing
         // select the input
         picker.sourceType = .camera
-        if settings.direction == .rear, UIImagePickerController.isCameraProDeviceAvailable(.rear) {
+        if settings.direction == .rear, UIImagePickerController.isCameraDeviceAvailable(.rear) {
             picker.cameraDevice = .rear
-        } else if settings.direction == .front, UIImagePickerController.isCameraProDeviceAvailable(.front) {
+        } else if settings.direction == .front, UIImagePickerController.isCameraDeviceAvailable(.front) {
             picker.cameraDevice = .front
         }
         // present
@@ -401,6 +492,21 @@ private extension CameraProPlugin {
             picker.popoverPresentationController?.delegate = self
             setCenteredPopover(picker)
         }
+        bridge?.viewController?.present(picker, animated: true, completion: nil)
+    }
+
+    func presentVideoPicker() {
+        let picker = UIImagePickerController()
+        picker.delegate = self
+        // select the input
+        picker.sourceType = .camera
+        picker.mediaTypes = ["public.movie"]
+        // present
+        // picker.modalPresentationStyle = settings.presentationStyle
+        // if settings.presentationStyle == .popover {
+        //     picker.popoverPresentationController?.delegate = self
+        //     setCenteredPopover(picker)
+        // }
         bridge?.viewController?.present(picker, animated: true, completion: nil)
     }
 
@@ -495,5 +601,14 @@ private extension CameraProPlugin {
             result.overwriteMetadataOrientation(to: 1)
         }
         return result
+    }
+    
+    
+    func processVideo(from info: [UIImagePickerController.InfoKey: Any]) -> ProcessedVideo? {
+        let urlOfVideo = info[UIImagePickerController.InfoKey.mediaURL] as? URL
+        if let url = urlOfVideo {
+            return ProcessedVideo(video: url)
+        }
+        return nil
     }
 }

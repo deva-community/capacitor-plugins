@@ -48,6 +48,12 @@ public struct CameraProSettings {
     var presentationStyle = UIModalPresentationStyle.fullScreen
 }
 
+public struct CameraProVideoSettings {
+    var saveToGallery = false
+    var duration: CGFloat = 0
+    var highquality = false
+}
+
 public struct CameraProResult {
     let image: UIImage?
     let metadata: [AnyHashable: Any]
@@ -63,7 +69,7 @@ internal enum CameraProPermissionType: String, CaseIterable {
 internal enum CameraProPropertyListKeys: String, CaseIterable {
     case photoLibraryAddUsage = "NSPhotoLibraryAddUsageDescription"
     case photoLibraryUsage = "NSPhotoLibraryUsageDescription"
-    case cameraUsage = "NSCameraProUsageDescription"
+    case cameraUsage = "NSCameraUsageDescription"
 
     var link: String {
         switch self {
@@ -78,7 +84,7 @@ internal enum CameraProPropertyListKeys: String, CaseIterable {
 
     var missingMessage: String {
         return "You are missing \(self.rawValue) in your Info.plist file." +
-            " CameraPro will not function without it. Learn more: \(self.link)"
+            " Camera will not function without it. Learn more: \(self.link)"
     }
 }
 
@@ -139,4 +145,8 @@ internal struct ProcessedImage {
         }
         return output as Data
     }
+}
+
+internal struct ProcessedVideo {
+    var video: URL?
 }
