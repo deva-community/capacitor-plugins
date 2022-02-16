@@ -13,6 +13,8 @@ public class CameraProPlugin: CAPPlugin {
     private var multiple = false
 
     private var imageCounter = 0
+    
+    private let kUTTypeMovie = "public.movie"
 
     @objc override public func checkPermissions(_ call: CAPPluginCall) {
         var result: [String: Any] = [:]
@@ -110,7 +112,14 @@ public class CameraProPlugin: CAPPlugin {
         }
 
         DispatchQueue.main.async {
-            self.showVideo()
+            switch self.videoSettings.source {
+            case .prompt:
+                self.showVideoPrompt()
+            case .camera:
+                self.showVideo()
+            case .library:
+                self.showVideoLibrary()
+            }
         }
     }
 
@@ -169,6 +178,10 @@ public class CameraProPlugin: CAPPlugin {
         settings.saveToGallery = call.getBool("saveToGallery") ?? false
         settings.duration = CGFloat(call.getInt("duration") ?? 0)
         settings.highquality = call.getBool("highquality") ?? false
+        settings.userPromptText = CameraProVideoPromptText(title: call.getString("promptLabelHeader"),
+                                                           videoAction: call.getString("promptLabelLibrary"),
+                                                           cameraAction: call.getString("promptLabelVideo"),
+                                                           cancelAction: call.getString("promptLabelCancel"))
         return settings
     }
 }
@@ -194,7 +207,7 @@ extension CameraProPlugin: UIImagePickerControllerDelegate, UINavigationControll
         if let type:AnyObject = mediaType {
             if type is String {
                 let stringType = type as! String
-                if stringType == "public.movie" {
+                if stringType == kUTTypeMovie {
                     if let processedVideo = processVideo(from: info) {
                         returnProcessedVideo(processedVideo)
                     } else {
@@ -250,24 +263,62 @@ extension CameraProPlugin: PHPickerViewControllerDelegate {
             }
 
         } else {
-            guard result.itemProvider.canLoadObject(ofClass: UIImage.self) else {
-                self.call?.reject("Error loading image")
+            // https://www.appcoda.com/phpicker/
+            let itemProvider = result.itemProvider
+            guard let typeIdentifier = itemProvider.registeredTypeIdentifiers.first,
+                  let utType = UTType(typeIdentifier)
+            else {
+                self.call?.reject("Error getting type")
                 return
             }
-            // extract the image
-            result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] (reading, _) in
-                if let image = reading as? UIImage {
-                    var asset: PHAsset?
-                    if let assetId = result.assetIdentifier {
-                        asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil).firstObject
+            if utType.conforms(to: .image) {
+                guard result.itemProvider.canLoadObject(ofClass: UIImage.self) else {
+                    self.call?.reject("Error loading image")
+                    return
+                }
+                // extract the image
+                itemProvider.loadObject(ofClass: UIImage.self) { [weak self] (reading, _) in
+                    if let image = reading as? UIImage {
+                        var asset: PHAsset?
+                        if let assetId = result.assetIdentifier {
+                            asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil).firstObject
+                        }
+                        if var processedImage = self?.processedImage(from: image, with: asset?.imageData) {
+                            processedImage.flags = .gallery
+                            self?.returnProcessedImage(processedImage)
+                            return
+                        }
+                        
                     }
-                    if var processedImage = self?.processedImage(from: image, with: asset?.imageData) {
-                        processedImage.flags = .gallery
-                        self?.returnProcessedImage(processedImage)
+                    self?.call?.reject("Error loading image")
+                }
+            } else if utType.conforms(to: .movie) {
+                itemProvider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
+                    if let error = error {
+                        print(error.localizedDescription)
+                        self.call?.reject("Error loading video")
                         return
                     }
+             
+                    guard let url = url else { return }
+             
+                    let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+                    guard let targetURL = documentsDirectory?.appendingPathComponent(url.lastPathComponent) else { return }
+             
+                    do {
+                        if FileManager.default.fileExists(atPath: targetURL.path) {
+                            try FileManager.default.removeItem(at: targetURL)
+                        }
+             
+                        try FileManager.default.copyItem(at: url, to: targetURL)
+                    } catch {
+                        print(error.localizedDescription)
+                        self.call?.reject("Error loading video")
+                        return
+                    }
+                    let processedVideo = self.processedVideo(from: targetURL)
+                    self.returnProcessedVideo(processedVideo)
                 }
-                self?.call?.reject("Error loading image")
             }
         }
 
@@ -323,16 +374,19 @@ private extension CameraProPlugin {
     }
     
     func returnVideo(_ processedVideo: ProcessedVideo) {
-        let fileURL = processedVideo.video
-        guard let webURL = bridge?.portablePath(fromLocalURL: fileURL) else {
-            call?.reject("Unable to get portable path to file")
-            return
+        if let fileURL = processedVideo.video {
+            guard let webURL = bridge?.portablePath(fromLocalURL: fileURL) else {
+                call?.reject("Unable to get portable path to file")
+                return
+            }
+            call?.resolve([
+                "path": fileURL.absoluteString,
+                "webPath": webURL.absoluteString,
+                "format": "mov"
+            ])
+        } else {
+            self.call?.reject("Unable to find or save video")
         }
-        call?.resolve([
-            "path": fileURL.absoluteString,
-            "webPath": webURL.absoluteString,
-            "format": "mov"
-        ])
     }
 
     func returnImages(_ processedImages: [ProcessedImage]) {
@@ -425,6 +479,47 @@ private extension CameraProPlugin {
             }
         }
     }
+    
+    func showPhotos() {
+        // check for permission
+        let authStatus = PHPhotoLibrary.authorizationStatus()
+        if authStatus == .restricted || authStatus == .denied {
+            call?.reject("User denied access to photos")
+            return
+        }
+        // we either already have permission or can prompt
+        if authStatus == .authorized {
+            presentSystemAppropriateImagePicker()
+        } else {
+            PHPhotoLibrary.requestAuthorization({ [weak self] (status) in
+                if status == PHAuthorizationStatus.authorized {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.presentSystemAppropriateImagePicker()
+                    }
+                } else {
+                    self?.call?.reject("User denied access to photos")
+                }
+            })
+        }
+    }
+    
+    func showVideoPrompt() {
+        // Build the action sheet
+        let alert = UIAlertController(title: videoSettings.userPromptText.title, message: nil, preferredStyle: UIAlertController.Style.actionSheet)
+        alert.addAction(UIAlertAction(title: videoSettings.userPromptText.videoAction, style: .default, handler: { [weak self] (_: UIAlertAction) in
+            self?.showVideoLibrary()
+        }))
+
+        alert.addAction(UIAlertAction(title: videoSettings.userPromptText.cameraAction, style: .default, handler: { [weak self] (_: UIAlertAction) in
+            self?.showVideo()
+        }))
+
+        alert.addAction(UIAlertAction(title: videoSettings.userPromptText.cancelAction, style: .cancel, handler: { [weak self] (_: UIAlertAction) in
+            self?.call?.reject("User cancelled photos app")
+        }))
+        self.setCenteredPopover(alert)
+        self.bridge?.viewController?.present(alert, animated: true, completion: nil)
+    }
 
     func showVideo() {
         // check if we have a camera
@@ -444,15 +539,15 @@ private extension CameraProPlugin {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             if granted {
                 DispatchQueue.main.async {
-                    self?.presentVideoPicker()
+                    self?.presentVideoCamerPicker()
                 }
             } else {
                 self?.call?.reject("User denied access to camera")
             }
         }
     }
-
-    func showPhotos() {
+    
+    func showVideoLibrary() {
         // check for permission
         let authStatus = PHPhotoLibrary.authorizationStatus()
         if authStatus == .restricted || authStatus == .denied {
@@ -461,12 +556,12 @@ private extension CameraProPlugin {
         }
         // we either already have permission or can prompt
         if authStatus == .authorized {
-            presentSystemAppropriateImagePicker()
+            presentSystemAppropriateVideoPicker()
         } else {
             PHPhotoLibrary.requestAuthorization({ [weak self] (status) in
                 if status == PHAuthorizationStatus.authorized {
                     DispatchQueue.main.async { [weak self] in
-                        self?.presentSystemAppropriateImagePicker()
+                        self?.presentSystemAppropriateVideoPicker()
                     }
                 } else {
                     self?.call?.reject("User denied access to photos")
@@ -495,12 +590,12 @@ private extension CameraProPlugin {
         bridge?.viewController?.present(picker, animated: true, completion: nil)
     }
 
-    func presentVideoPicker() {
+    func presentVideoCamerPicker() {
         let picker = UIImagePickerController()
         picker.delegate = self
         // select the input
         picker.sourceType = .camera
-        picker.mediaTypes = ["public.movie"]
+        picker.mediaTypes = [kUTTypeMovie]
         // present
         // picker.modalPresentationStyle = settings.presentationStyle
         // if settings.presentationStyle == .popover {
@@ -546,6 +641,33 @@ private extension CameraProPlugin {
             picker.popoverPresentationController?.delegate = self
             setCenteredPopover(picker)
         }
+        bridge?.viewController?.present(picker, animated: true, completion: nil)
+    }
+    
+    func presentSystemAppropriateVideoPicker() {
+        if #available(iOS 14, *) {
+            presentVideoLibraryPicker()
+        } else {
+            presentVideoPicker()
+        }
+    }
+
+    func presentVideoPicker() {
+        let picker = UIImagePickerController()
+        picker.delegate = self
+        // select the input
+        picker.sourceType = .photoLibrary
+        picker.mediaTypes = [kUTTypeMovie]
+        bridge?.viewController?.present(picker, animated: true, completion: nil)
+    }
+
+    @available(iOS 14, *)
+    func presentVideoLibraryPicker() {
+        var configuration = PHPickerConfiguration(photoLibrary: PHPhotoLibrary.shared())
+        configuration.selectionLimit = 1
+        configuration.filter = .videos
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
         bridge?.viewController?.present(picker, animated: true, completion: nil)
     }
 
@@ -610,5 +732,9 @@ private extension CameraProPlugin {
             return ProcessedVideo(video: url)
         }
         return nil
+    }
+
+    func processedVideo(from url: URL) -> ProcessedVideo {
+        return ProcessedVideo(video: url)
     }
 }

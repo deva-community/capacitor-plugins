@@ -369,6 +369,64 @@ export interface VideoOptions {
    * @since 1.0.0
    */
   highquality?: boolean;
+  /**
+   * The source to get the video from. By default this prompts the user to select
+   * either the library or take a video.
+   * @default: CameraVideoSource.Prompt
+   *
+   * @since 1.0.0
+   */
+  source?: CameraVideoSource;
+  /**
+   * Text value to use when displaying the prompt.
+   * @default: 'Video'
+   *
+   * @since 1.0.0
+   *
+   */
+  promptLabelHeader?: string;
+
+  /**
+   * Text value to use when displaying the prompt.
+   * iOS only: The label of the 'cancel' button.
+   * @default: 'Cancel'
+   *
+   * @since 1.0.0
+   */
+  promptLabelCancel?: string;
+
+  /**
+   * Text value to use when displaying the prompt.
+   * The label of the button to select a saved image.
+   * @default: 'From Library'
+   *
+   * @since 1.0.0
+   */
+  promptLabelLibrary?: string;
+
+  /**
+   * Text value to use when displaying the prompt.
+   * The label of the button to open the camera.
+   * @default: 'Take Video'
+   *
+   * @since 1.0.0
+   */
+  promptLabelVideo?: string;
+}
+
+export enum CameraVideoSource {
+  /**
+   * Prompts the user to select either the photo album or take a photo.
+   */
+  Prompt = 'PROMPT',
+  /**
+   * Take a new photo using the camera.
+   */
+  Camera = 'CAMERA',
+  /**
+   * Pick an existing photo fron the gallery or photo album.
+   */
+  Library = 'LIBRARY',
 }
 
 export interface Video {

@@ -175,11 +175,16 @@ Request camera and photo album permissions
 
 #### VideoOptions
 
-| Prop                | Type                 | Description                                                                                                          | Default                    | Since |
-| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------- | ----- |
-| **`saveToGallery`** | <code>boolean</code> | Whether to save the video to the gallery. If the video was picked from the gallery, it will only be saved if edited. | <code>: false</code>       | 1.0.0 |
-| **`duration`**      | <code>number</code>  | The maximum duration of the video in seconds.                                                                        | <code>0 (unlimited)</code> | 1.0.0 |
-| **`highquality`**   | <code>boolean</code> | Set to true to override the default low quality setting                                                              |                            | 1.0.0 |
+| Prop                     | Type                                                            | Description                                                                                                          | Default                                 | Since |
+| ------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- |
+| **`saveToGallery`**      | <code>boolean</code>                                            | Whether to save the video to the gallery. If the video was picked from the gallery, it will only be saved if edited. | <code>: false</code>                    | 1.0.0 |
+| **`duration`**           | <code>number</code>                                             | The maximum duration of the video in seconds.                                                                        | <code>0 (unlimited)</code>              | 1.0.0 |
+| **`highquality`**        | <code>boolean</code>                                            | Set to true to override the default low quality setting                                                              |                                         | 1.0.0 |
+| **`source`**             | <code><a href="#cameravideosource">CameraVideoSource</a></code> | The source to get the video from. By default this prompts the user to select either the library or take a video.     | <code>: CameraVideoSource.Prompt</code> | 1.0.0 |
+| **`promptLabelHeader`**  | <code>string</code>                                             | Text value to use when displaying the prompt.                                                                        | <code>: 'Video'</code>                  | 1.0.0 |
+| **`promptLabelCancel`**  | <code>string</code>                                             | Text value to use when displaying the prompt. iOS only: The label of the 'cancel' button.                            | <code>: 'Cancel'</code>                 | 1.0.0 |
+| **`promptLabelLibrary`** | <code>string</code>                                             | Text value to use when displaying the prompt. The label of the button to select a saved image.                       | <code>: 'From Library'</code>           | 1.0.0 |
+| **`promptLabelVideo`**   | <code>string</code>                                             | Text value to use when displaying the prompt. The label of the button to open the camera.                            | <code>: 'Take Video'</code>             | 1.0.0 |
 
 
 #### GalleryPhotos
@@ -271,5 +276,14 @@ Request camera and photo album permissions
 | ----------- | -------------------- |
 | **`Rear`**  | <code>'REAR'</code>  |
 | **`Front`** | <code>'FRONT'</code> |
+
+
+#### CameraVideoSource
+
+| Members       | Value                  | Description                                                        |
+| ------------- | ---------------------- | ------------------------------------------------------------------ |
+| **`Prompt`**  | <code>'PROMPT'</code>  | Prompts the user to select either the photo album or take a photo. |
+| **`Camera`**  | <code>'CAMERA'</code>  | Take a new photo using the camera.                                 |
+| **`Library`** | <code>'LIBRARY'</code> | Pick an existing photo fron the gallery or photo album.            |
 
 </docgen-api>

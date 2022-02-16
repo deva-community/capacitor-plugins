@@ -1,5 +1,5 @@
 import UIKit
-
+import AVFoundation
 // MARK: - Public
 
 public enum CameraProSource: String {
@@ -48,10 +48,32 @@ public struct CameraProSettings {
     var presentationStyle = UIModalPresentationStyle.fullScreen
 }
 
+public enum CameraProVideoSource: String {
+    case prompt = "PROMPT"
+    case camera = "CAMERA"
+    case library = "LIBRARY"
+}
+
+struct CameraProVideoPromptText {
+    let title: String
+    let videoAction: String
+    let cameraAction: String
+    let cancelAction: String
+
+    init(title: String? = nil, videoAction: String? = nil, cameraAction: String? = nil, cancelAction: String? = nil) {
+        self.title = title ?? "Video"
+        self.videoAction = videoAction ?? "From Library"
+        self.cameraAction = cameraAction ?? "Take Video"
+        self.cancelAction = cancelAction ?? "Cancel"
+    }
+}
+
 public struct CameraProVideoSettings {
+    var source: CameraProVideoSource = CameraProVideoSource.prompt
     var saveToGallery = false
     var duration: CGFloat = 0
     var highquality = false
+    var userPromptText = CameraProVideoPromptText()
 }
 
 public struct CameraProResult {
@@ -149,4 +171,70 @@ internal struct ProcessedImage {
 
 internal struct ProcessedVideo {
     var video: URL?
+
+    func encodeVideo(completionHandler: @escaping (_ video: URL?) -> ()){
+        let me: ProcessedVideo = self
+        if let videoURL:URL = me.video {
+            let avAsset = AVURLAsset(url: videoURL)
+            let startDate = Date()
+            let exportSession = AVAssetExportSession(asset: avAsset, presetName: AVAssetExportPresetPassthrough)
+            
+            let docDir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+            let myDocPath = NSURL(fileURLWithPath: docDir).appendingPathComponent("temp.mp4")?.absoluteString
+            
+            let docDir2 = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] as NSURL
+            
+            let filePath = docDir2.appendingPathComponent("rendered-Video.mp4")
+            deleteFile(filePath!)
+            
+            if FileManager.default.fileExists(atPath: myDocPath!){
+                do{
+                    try FileManager.default.removeItem(atPath: myDocPath!)
+                }catch let error{
+                    print(error)
+                }
+            }
+            
+            exportSession?.outputURL = filePath
+            exportSession?.outputFileType = AVFileType.mp4
+            exportSession?.shouldOptimizeForNetworkUse = true
+            
+            let start = CMTimeMakeWithSeconds(0.0, preferredTimescale: 0)
+            let range = CMTimeRange(start: start, duration: avAsset.duration)
+            exportSession?.timeRange = range
+                        
+            exportSession!.exportAsynchronously{() -> Void in
+                switch exportSession!.status{
+                case .failed:
+                    print("\(exportSession!.error!)")
+                    completionHandler(nil)
+                case .cancelled:
+                    print("Export cancelled")
+                    completionHandler(nil)
+                case .completed:
+                    let endDate = Date()
+                    let time = endDate.timeIntervalSince(startDate)
+                    print(time)
+                    print("Successful")
+                    print(exportSession?.outputURL ?? "")
+                    completionHandler(exportSession?.outputURL)
+                default:
+                    completionHandler(nil)
+                    break
+                }
+                
+            }
+        }
+    }
+    
+    func deleteFile(_ filePath:URL) {
+        guard FileManager.default.fileExists(atPath: filePath.path) else{
+            return
+        }
+        do {
+            try FileManager.default.removeItem(atPath: filePath.path)
+        }catch{
+            fatalError("Unable to delete file: \(error) : \(#function).")
+        }
+    }
 }
