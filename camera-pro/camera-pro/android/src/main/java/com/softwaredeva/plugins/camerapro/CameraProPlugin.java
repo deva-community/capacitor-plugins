@@ -71,6 +71,7 @@ public class CameraProPlugin extends Plugin {
     // Permission alias constants
     static final String CAMERA = "camera";
     static final String PHOTOS = "photos";
+    static final String VIDEOS = "videos";
 
     // Message constants
     private static final String INVALID_RESULT_TYPE_ERROR = "Invalid resultType option";
@@ -84,6 +85,7 @@ public class CameraProPlugin extends Plugin {
     private static final String IMAGE_PROCESS_NO_FILE_ERROR = "Unable to process image, file not found on disk";
     private static final String VIDEO_PROCESS_NO_FILE_ERROR = "Unable to process video, file not found on disk";
     private static final String UNABLE_TO_PROCESS_IMAGE = "Unable to process image";
+    private static final String UNABLE_TO_PROCESS_VIDEO = "Unable to process video";
     private static final String IMAGE_EDIT_ERROR = "Unable to edit image";
     private static final String IMAGE_GALLERY_SAVE_ERROR = "Unable to save the image in the gallery";
 
@@ -112,7 +114,7 @@ public class CameraProPlugin extends Plugin {
     public void getVideo(PluginCall call) {
         isEdited = false;
         videoSettings = getVideoSettings(call);
-        showVideoCamera(call);
+        doVideoShow(call);
     }
 
     @PluginMethod
@@ -152,6 +154,44 @@ public class CameraProPlugin extends Plugin {
                 } else if (index == 1) {
                     settings.setSource(CameraProSource.CAMERA);
                     openCamera(call);
+                }
+            },
+            () -> call.reject("User cancelled photos app")
+        );
+        fragment.show(getActivity().getSupportFragmentManager(), "capacitorModalsActionSheet");
+    }
+
+    private void doVideoShow(PluginCall call) {
+        switch (videoSettings.getSource()) {
+            case CAMERA:
+                showVideoCamera(call);
+                break;
+            case LIBRARY:
+                showVideoLibrary(call);
+                break;
+            default:
+                showVideoPrompt(call);
+                break;
+        }
+    }
+
+    private void showVideoPrompt(final PluginCall call) {
+        // We have all necessary permissions, open the camera
+        List<String> options = new ArrayList<>();
+        options.add(call.getString("promptLabelLibrary", "From Library"));
+        options.add(call.getString("promptLabelVideo", "Take Video"));
+
+        final CameraProBottomSheetDialogFragment fragment = new CameraProBottomSheetDialogFragment();
+        fragment.setTitle(call.getString("promptLabelHeader", "Video"));
+        fragment.setOptions(
+            options,
+            index -> {
+                if (index == 0) {
+                    videoSettings.setSource(CameraProVideoSource.LIBRARY);
+                    showVideoLibrary(call);
+                } else if (index == 1) {
+                    videoSettings.setSource(CameraProVideoSource.CAMERA);
+                    showVideoCamera(call);
                 }
             },
             () -> call.reject("User cancelled photos app")
@@ -239,6 +279,14 @@ public class CameraProPlugin extends Plugin {
         return true;
     }
 
+    private boolean checkVideoLibraryPermissions(PluginCall call) {
+        if (getPermissionState(PHOTOS) != PermissionState.GRANTED) {
+            requestPermissionForAlias(PHOTOS, call, "cameraPermissionsCallback");
+            return false;
+        }
+        return true;
+    }
+
     /**
      * Completes the plugin call after a camera permission request
      *
@@ -259,7 +307,11 @@ public class CameraProPlugin extends Plugin {
                 call.reject(PERMISSION_DENIED_ERROR_PHOTOS);
                 return;
             }
-            doShow(call);
+            if (call.getMethodName().equals("getVideo")) {
+                doVideoShow(call);
+            } else {
+                doShow(call);
+            }
         }
     }
 
@@ -383,28 +435,28 @@ public class CameraProPlugin extends Plugin {
         }
     }
 
-    // public void openVideos(final PluginCall call) {
-    //     openVideos(call, false, false);
-    // }
+    public void showVideoLibrary(final PluginCall call) {
+        showVideoLibrary(call, false, false);
+    }
 
-    // private void openVideos(final PluginCall call, boolean multiple, boolean skipPermission) {
-    //     if (skipPermission || checkPhotosPermissions(call)) {
-    //         Intent intent = new Intent(Intent.ACTION_PICK);
-    //         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
-    //         intent.setType("video/*");
-    //         try {
-    //             if (multiple) {
-    //                 intent.putExtra("multi-pick", multiple);
-    //                 intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "video/*" });
-    //                 startActivityForResult(call, intent, "processPickedVideos");
-    //             } else {
-    //                 startActivityForResult(call, intent, "processPickedVideo");
-    //             }
-    //         } catch (ActivityNotFoundException ex) {
-    //             call.reject(NO_VIDEO_ACTIVITY_ERROR);
-    //         }
-    //     }
-    // }
+    private void showVideoLibrary(final PluginCall call, boolean multiple, boolean skipPermission) {
+        if (skipPermission || checkVideoLibraryPermissions(call)) {
+            Intent intent = new Intent(Intent.ACTION_PICK);
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
+            intent.setType("video/*");
+            try {
+                if (multiple) {
+                    intent.putExtra("multi-pick", multiple);
+                    intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "video/*" });
+                    startActivityForResult(call, intent, "processPickedVideos");
+                } else {
+                    startActivityForResult(call, intent, "processPickedVideo");
+                }
+            } catch (ActivityNotFoundException ex) {
+                call.reject(NO_VIDEO_ACTIVITY_ERROR);
+            }
+        }
+    }
 
     @ActivityCallback
     public void processCameraImage(PluginCall call, ActivityResult result) {
@@ -454,6 +506,18 @@ public class CameraProPlugin extends Plugin {
         imagePickedContentUri = u;
 
         processPickedImage(u, call);
+    }
+
+    @ActivityCallback
+    public void processPickedVideo(PluginCall call, ActivityResult result) {
+        videoSettings = getVideoSettings(call);
+        Intent data = result.getData();
+        if (data == null) {
+            call.reject("No video picked");
+            return;
+        }
+        Uri u = data.getData();
+        processPickedVideo(u, call);
     }
 
     @ActivityCallback
@@ -544,6 +608,15 @@ public class CameraProPlugin extends Plugin {
                     Logger.error(getLogTag(), UNABLE_TO_PROCESS_IMAGE, e);
                 }
             }
+        }
+    }
+
+    private void processPickedVideo(Uri videoUri, PluginCall call) {
+        try {
+            returnVideoResult(call, videoUri);
+        } catch (OutOfMemoryError err) {
+            call.reject("Out of memory");
+            Logger.error(getLogTag(), UNABLE_TO_PROCESS_VIDEO,err);
         }
     }
 

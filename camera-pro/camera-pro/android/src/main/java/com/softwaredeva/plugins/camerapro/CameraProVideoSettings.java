@@ -8,7 +8,7 @@ public class CameraProVideoSettings {
 
     private boolean highquality = DEFAULT_QUALITY;
     private boolean saveToGallery = DEFAULT_SAVE_VIDEO_TO_GALLERY;
-    private CameraProSource source = CameraProSource.PROMPT;
+    private CameraProVideoSource source = CameraProVideoSource.PROMPT;
     private int duration = DEFAULT_DURATION;
 
     public boolean getHighquality() {
@@ -27,11 +27,11 @@ public class CameraProVideoSettings {
         this.saveToGallery = saveToGallery;
     }
 
-    public CameraProSource getSource() {
+    public CameraProVideoSource getSource() {
         return source;
     }
 
-    public void setSource(CameraProSource source) {
+    public void setSource(CameraProVideoSource source) {
         this.source = source;
     }
 
