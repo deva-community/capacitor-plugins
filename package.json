@@ -1,0 +1,39 @@
+{
+  "name": "capacitor-plugins",
+  "version": "1.0.0",
+  "description": "Capacitor plugins projects",
+  "scripts": {
+    "build": "lerna run build",
+    "watch": "lerna run --parallel --stream watch",
+    "lint": "npm run scripts:prettier -- --check && lerna run lint",
+    "fmt": "npm run scripts:prettier -- --write && lerna run fmt",
+    "scripts:prettier": "npx prettier \"scripts/**/*.mjs\"",
+    "apply-patches": "node ./scripts/apply-patches.mjs",
+    "toggle-local": "node ./scripts/toggle-local.mjs",
+    "update-all": "node ./scripts/update-all.mjs",
+    "set-capacitor-version": "node ./scripts/set-capacitor-version.mjs",
+    "postinstall": "lerna bootstrap",
+    "release": "lerna publish",
+    "publish:cocoapod": "lerna run publish:cocoapod --concurrency 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://ealejandromt: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@github.com/deva-community/capacitor-plugins.git"
+  },
+  "author": "SoftwareDEVA",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/deva-community/capacitor-plugins/issues"
+  },
+  "homepage": "https://github.com/deva-community/capacitor-plugins#readme",
+  "devDependencies": {
+    "@actions/core": "^1.6.0",
+    "@ionic/prettier-config": "^2.0.0",
+    "@types/prompts": "^2.0.14",
+    "esm": "^3.2.25",
+    "lerna": "^4.0.0",
+    "prettier": "^2.5.1",
+    "prompts": "^2.4.2"
+  },
+  "prettier": "@ionic/prettier-config"
+}

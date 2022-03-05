@@ -1,0 +1,19 @@
+{
+  "commands": {
+    "bootstrap": {
+      "ci": false,
+      "npmClientArgs": [
+        "--no-package-lock"
+      ]
+    },
+    "version": {
+      "allowBranch": "main",
+      "conventionalCommits": true,
+      "createRelease": "github",
+      "message": "chore(release): publish [skip ci]",
+      "tagVersionPrefix": ""
+    }
+  },
+  "packages": [],
+  "version": "independent"
+}
