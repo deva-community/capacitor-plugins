@@ -1,6 +1,6 @@
 {
   "name": "@deva-community/capacitor-camera-pro",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "The CameraPro API provides the ability to take a photo or video with the camera or choose an existing one from the photo album.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
@@ -17,10 +17,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/softwaredeva/capacitor-camera-pro.git.git"
+    "url": "git+https://github.com/deva-community/capacitor-plugins.git"
   },
   "bugs": {
-    "url": "https://github.com/softwaredeva/capacitor-camera-pro.git/issues"
+    "url": "https://github.com/deva-community/capacitor-plugins/issues"
   },
   "keywords": [
     "capacitor",
@@ -29,7 +29,7 @@
   ],
   "scripts": {
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
-    "verify:ios": "cd ios && pod install && xcodebuild -workspace Plugin.xcworkspace -scheme Plugin -sdk iphoneos  && cd ..",
+    "verify:ios": "cd ios && pod install && xcodebuild -workspace Plugin.xcworkspace -scheme Plugin && cd ..",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
     "verify:web": "npm run build",
     "lint": "npm run eslint && npm run prettier -- --check && npm run swiftlint -- lint",
@@ -37,11 +37,12 @@
     "eslint": "eslint . --ext ts",
     "prettier": "prettier \"**/*.{css,html,ts,js,java}\"",
     "swiftlint": "node-swiftlint",
-    "docgen": "docgen --api CameraProPlugin --output-readme README.md --output-json dist/docs.json",
+    "docgen": "docgen --api CameraPlugin --output-readme README.md --output-json dist/docs.json",
     "build": "npm run clean && npm run docgen && tsc && rollup -c rollup.config.js",
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "publish:cocoapod": "pod trunk push ./CapacitorCamera.podspec --allow-warnings"
   },
   "devDependencies": {
     "@capacitor/android": "^3.0.0",
@@ -74,5 +75,8 @@
     "android": {
       "src": "android"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

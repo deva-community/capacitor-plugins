@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://ealejandromt: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@github.com/deva-community/capacitor-plugins.git"
+    "url": "git+https://github.com/deva-community/capacitor-plugins.git"
   },
   "author": "SoftwareDEVA",
   "license": "MIT",

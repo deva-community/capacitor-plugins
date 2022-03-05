@@ -15,7 +15,7 @@
     }
   },
   "packages": [
-    "camera-pro/*"
+    "camera-pro"
   ],
   "version": "independent"
 }
